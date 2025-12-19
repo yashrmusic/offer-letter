@@ -1,0 +1,21 @@
+{
+    "company_name": "Urban Mistrii",
+    "email": "hr@urbanmistrii.com",
+    "app_password": "TO_BE_CONFIGURED",
+    "template_docx": "profiles/urbanmistrii/offer_template.docx",
+    "offer_validity_days": 2,
+    "probation_months": 3,
+    "signature_portal_url": "http://localhost:5000",
+    "email_signature": "Best regards,\nHR Team\nUrban Mistrii",
+    "office_address": "TO_BE_CONFIGURED",
+    "schedule_1_config": {
+        "fill_rows": [
+            "Basic",
+            "Gross Compensation",
+            "Fixed Compensation",
+            "Cost to Company Compensation"
+        ],
+        "use_lower_bound": true,
+        "all_same_value": true
+    }
+}
