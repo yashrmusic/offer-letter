@@ -25,14 +25,14 @@ def load_profile(profile_name):
     with open(profile_path, 'r') as f:
         return json.load(f)
 
-def send_offer_email(candidate_data_path, pdf_path, profile):
+def send_offer_email(candidate_data_path, pdf_path, profile, recipient_override=None):
     """Send offer letter PDF via email using profile credentials"""
     
     # Load candidate data
     with open(candidate_data_path, 'r') as f:
         data = json.load(f)
     
-    recipient_email = data.get('email')
+    recipient_email = recipient_override if recipient_override else data.get('email')
     candidate_name = data.get('name')
     position = data.get('position')
     
@@ -51,25 +51,23 @@ def send_offer_email(candidate_data_path, pdf_path, profile):
     msg['To'] = recipient_email
     msg['Subject'] = f"Offer Letter - {position} Position at {company_name}"
     
-    # Email body
+    # Email body (Beautified and professional)
     body = f"""Dear {candidate_name},
 
-Congratulations! 🎉
+It is with great pleasure that we extend this formal offer of employment for the position of {position} at {company_name}.
 
-We are delighted to extend an offer for the position of {position} at {company_name}.
+Based on our recent interactions and your impressive background, we believe your skills and perspective will be a valuable addition to our team.
 
-Please find your offer letter attached to this email. Kindly review the terms and conditions carefully.
+Please find your offer letter attached to this communication. We kindly request that you review the terms and conditions outlined in the document.
 
-To accept this offer:
-1. Review the attached offer letter
-2. Print and sign the document
-3. Scan and email the signed copy back to us
+To proceed with your acceptance, please follow these steps:
+1. Thoroughly review the attached offer letter.
+2. Sign the document (either by printing and scanning or using a digital signature).
+3. Return the signed copy to this email address.
 
-Alternatively, you may apply your digital signature to the PDF and email it back.
+Should you have any questions or require further clarification regarding any aspect of this offer, please do not hesitate to reach out to us.
 
-If you have any questions or need clarification, please don't hesitate to reach out.
-
-We look forward to welcoming you to our team!
+We are excited about the possibility of you joining {company_name} and contributing to our shared success.
 
 {profile['email_signature']}
 """
@@ -106,17 +104,25 @@ We look forward to welcoming you to our team!
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python3 send_email.py <profile> <candidate.json>")
+        print("Usage: python3 send_email.py <profile> <candidate.json> [--to recipient@email.com]")
         print("\nProfiles:")
         print("  melange      - The Melange Studio")
         print("  urbanmistrii - Urban Mistrii")
         print("  decoarte     - Deco Arte")
         print("\nExample:")
-        print("  python3 send_email.py melange examples/sample_candidate.json")
+        print("  python3 send_email.py melange examples/sample_candidate.json --to reviewer@email.com")
         sys.exit(1)
     
     profile_name = sys.argv[1]
     candidate_file = sys.argv[2]
+    
+    recipient_override = None
+    if '--to' in sys.argv:
+        try:
+            recipient_override = sys.argv[sys.argv.index('--to') + 1]
+        except IndexError:
+            print("❌ Error: --to requires an email address")
+            sys.exit(1)
     
     # Load profile
     print(f"📋 Loading profile: {profile_name}")
@@ -138,7 +144,10 @@ def main():
     
     print(f"📄 Found PDF: {pdf_path}")
     print(f"🏢 Company: {profile['company_name']}")
-    send_offer_email(candidate_file, pdf_path, profile)
+    if recipient_override:
+        print(f"🎯 Overriding recipient: {recipient_override}")
+    
+    send_offer_email(candidate_file, pdf_path, profile, recipient_override)
 
 if __name__ == "__main__":
     main()
