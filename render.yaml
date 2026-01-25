@@ -1,0 +1,12 @@
+
+services:
+  - type: worker
+    name: clawdbot
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npx clawdbot gateway run --port 18789
+    disk:
+      name: clawd_data
+      mountPath: /root/.clawdbot
+      sizeGB: 1
