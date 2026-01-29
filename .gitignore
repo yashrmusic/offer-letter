@@ -5,3 +5,8 @@ output/
 *.docx
 !profiles/**/*.docx
 !templates/**/*.docx
+
+# Sensitive data
+.env
+examples/
+profiles/**/config.json

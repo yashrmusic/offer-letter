@@ -12,8 +12,10 @@ from pathlib import Path
 from PIL import Image
 import io
 from docx import Document
-from docx.shared import Inches
+import google.generativeai as genai
 import subprocess
+from generate_offer import generate_offer_internal, load_profile as load_company_profile
+from send_email import send_offer_email
 
 app = Flask(__name__, 
             static_folder='web',
@@ -24,9 +26,148 @@ OUTPUT_DIR = Path('output')
 WEB_DIR = Path('web')
 EXAMPLES_DIR = Path('examples')
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Initialize Gemini
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+else:
+    print("⚠️  Warning: GEMINI_API_KEY not found in environment variables.")
+    model = None
+
 @app.route('/')
 def index():
     return send_file(WEB_DIR / 'index.html')
+
+@app.route('/admin')
+def admin():
+    return send_file(WEB_DIR / 'admin.html')
+
+@app.route('/api/profiles')
+def get_profiles():
+    """List available company profiles"""
+    try:
+        profiles_dir = Path('profiles')
+        profiles = [d.name for d in profiles_dir.iterdir() if d.is_dir()]
+        return jsonify({'success': True, 'profiles': profiles})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/generate-offer', methods=['POST'])
+def generate_offer():
+    """Generate offer letter from web form data"""
+    try:
+        data = request.json
+        profile_name = data.get('profile')
+        candidate_data = data.get('candidate')
+        
+        if not profile_name or not candidate_data:
+            return jsonify({'success': False, 'message': 'Missing profile or candidate data'}), 400
+            
+        result = generate_offer_internal(profile_name, candidate_data)
+        
+        return jsonify({
+            'success': True,
+            'message': f"Offer generated for {candidate_data['name']}",
+            'pdf_url': f"/api/offer-pdf/{candidate_data['name'].replace(' ', '_')}?profile={profile_name}"
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/ai-parse', methods=['POST'])
+def ai_parse():
+    """Use Gemini to parse unstructured candidate info from a prompt"""
+    try:
+        data = request.json
+        prompt = data.get('prompt')
+        
+        if not prompt:
+            return jsonify({'success': False, 'message': 'No prompt provided'}), 400
+            
+        sys_instruction = """
+        Extract candidate information from the following text and return it in JSON format.
+        Fields to extract:
+        - name: Full name
+        - email: Email address
+        - phone: Phone number
+        - position: Job title/role
+        - start_date: Joining date (e.g. 5 January, 2026)
+        - salary: Monthly salary (numeric or range)
+        - test_date: Interview date
+        
+        If a field is not found, leave it as an empty string. Output ONLY the JSON.
+        """
+        
+        response = model.generate_content(f"{sys_instruction}\n\nCandidate Text: {prompt}")
+        
+        # Clean the response to ensure it's valid JSON
+        text = response.text.strip()
+        if text.startswith('```json'):
+            text = text[7:]
+        if text.endswith('```'):
+            text = text[:-3]
+        text = text.strip()
+            
+        parsed_data = json.loads(text)
+        return jsonify({'success': True, 'data': parsed_data})
+        
+    except Exception as e:
+        print(f"AI Error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+@app.route('/api/send-email', methods=['POST'])
+def send_email():
+    """Send generated offer letter via email"""
+    try:
+        data = request.json
+        profile_name = data.get('profile')
+        candidate_name = data.get('candidate_name')
+        candidate_email = data.get('candidate_email') # Optional override
+        
+        if not profile_name or not candidate_name:
+            return jsonify({'success': False, 'message': 'Missing profile or candidate name'}), 400
+            
+        profile = load_company_profile(profile_name)
+        
+        # Load candidate data to get correct name format and email
+        name_clean = candidate_name.replace(' ', '_')
+        pdf_path = OUTPUT_DIR / profile_name / f'offer_letter_{name_clean}.pdf'
+        
+        if not pdf_path.exists():
+            return jsonify({'success': False, 'message': f"PDF not found at {pdf_path}. Generate it first."}), 404
+            
+        # We need the JSON file path for send_offer_email
+        # For web-generated offers, we might not have a JSON file yet, or we can create a temporary one
+        # Alternatively, refactor send_offer_email to take data directly
+        
+        # Let's check if the json exists in examples/
+        candidate_file = EXAMPLES_DIR / f"{name_clean.lower()}.json"
+        
+        # If it doesn't exist, we'll create a minimal one for the email script
+        if not candidate_file.exists():
+            candidate_file = Path(f"/tmp/{name_clean.lower()}.json")
+            with open(candidate_file, 'w') as f:
+                json.dump({
+                    "name": candidate_name,
+                    "email": candidate_email,
+                    "position": "Selected Position" # Fallback
+                }, f)
+
+        success = send_offer_email(str(candidate_file), pdf_path, profile, recipient_override=candidate_email)
+        
+        if success:
+            return jsonify({'success': True, 'message': f"Email sent to {candidate_name}"})
+        else:
+            return jsonify({'success': False, 'message': "Failed to send email. Check logs."}), 500
+            
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/offer-preview/<candidate_name>')
 def get_offer_preview(candidate_name):
@@ -179,11 +320,11 @@ if __name__ == '__main__':
     OUTPUT_DIR.mkdir(exist_ok=True)
     
     print("🚀 Starting signature collection server...")
-    print("📝 Open http://localhost:5000 in your browser")
+    print("📝 Open http://localhost:5001 in your browser")
     print("✍️  Candidates can sign their offer letters digitally!")
     
     # Check if templates and output exist
     if not (OUTPUT_DIR / 'melange').exists():
         print("⚠️  Warning: output/melange directory not found. Have you generated any offers yet?")
         
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)

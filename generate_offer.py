@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Profile-based Offer Letter Generation
-Supports multiple companies with different templates and configurations
+Format-preserving Offer Letter Generation
+Uses simple text replacement within runs to preserve formatting
 """
 
 import json
@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from docx import Document
 import subprocess
+
 
 def load_profile(profile_name):
     """Load company profile configuration"""
@@ -22,72 +23,75 @@ def load_profile(profile_name):
     with open(profile_path, 'r') as f:
         return json.load(f)
 
+
+def replace_in_runs(paragraph, find_text, replace_text):
+    """Replace text in runs while preserving formatting"""
+    for run in paragraph.runs:
+        if find_text in run.text:
+            run.text = run.text.replace(find_text, replace_text)
+            return True
+    return False
+
+
 def fill_offer_letter(template_path, data, profile, output_path):
-    """Fill offer letter template with candidate data"""
+    """Fill offer letter template with candidate data - preserving formatting"""
     doc = Document(template_path)
     
     # Map JSON data fields to template placeholders
     replacements = {
         '{{Candidate Name}}': data.get('name', ''),
+        '{{CANDIDATE_NAME}}': data.get('name', ''),
         '{{Interview Date}}': data.get('test_date', ''),
+        '{{INTERVIEW_DATE}}': data.get('test_date', ''),
         '{{Job Title}}': data.get('position', ''),
+        '{{JOB_TITLE}}': data.get('position', ''),
         '{{Joining Date}}': data.get('start_date', ''),
+        '{{JOINING_DATE}}': data.get('start_date', ''),
         '{{Offer Validity Days}}': str(profile['offer_validity_days']),
         '{{Probation Monthly Salary}}': data.get('salary', ''),
-        '{{Probation Period Months}}': str(profile['probation_months']),
+        '{{MONTHLY_SALARY}}': data.get('salary', ''),
+        '{{Probation Period Months}}': data.get('probation_period', str(profile['probation_months'])),
+        '{{Probation period}}': data.get('probation_period', str(profile['probation_months'])),
         '{{Acceptance Date}}': '',
+        '{{Current Date}}': data.get('current_date', ''),
+        '{{CURRENT_DATE}}': data.get('current_date', ''),
+        '{{OFFER_EXPIRY_DAYS}}': str(profile['offer_validity_days']),
     }
     
+    # Replace in paragraphs - try run-level first, then fall back to paragraph-level
     for paragraph in doc.paragraphs:
         for find_text, replace_text in replacements.items():
             if find_text in paragraph.text:
-                paragraph.text = paragraph.text.replace(find_text, str(replace_text))
+                # Try run-level replacement first (preserves formatting)
+                replaced = replace_in_runs(paragraph, find_text, str(replace_text))
+                if not replaced:
+                    # Fall back to rebuilding runs if placeholder spans multiple runs
+                    inline = paragraph.runs
+                    for i, run in enumerate(inline):
+                        if find_text in run.text:
+                            run.text = run.text.replace(find_text, str(replace_text))
     
+    # Replace in tables - need special handling for split placeholders
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
-                for find_text, replace_text in replacements.items():
-                    if find_text in cell.text:
-                        cell.text = cell.text.replace(find_text, str(replace_text))
-    
-    # Fill Schedule 1 based on profile config
-    if len(doc.tables) >= 2:
-        schedule_table = doc.tables[1]
-        schedule_config = profile['schedule_1_config']
-        
-        # Parse salary
-        salary_str = data.get('salary', '0')
-        salary_str = salary_str.replace('/-', '').replace(',', '').strip()
-        
-        if '-' in salary_str:
-            parts = salary_str.split('-')
-            try:
-                if schedule_config['use_lower_bound']:
-                    salary = float(parts[0])
-                else:
-                    salary = (float(parts[0]) + float(parts[1])) / 2
-            except:
-                salary = 0
-        else:
-            try:
-                salary = float(salary_str)
-            except:
-                salary = 0
-        
-        # Fill configured rows with same value
-        if schedule_config['all_same_value']:
-            salary_formatted = f"{salary:,.0f}"
-            compensation_data = {row: salary_formatted for row in schedule_config['fill_rows']}
-        
-        # Fill the table
-        for row in schedule_table.rows[1:]:
-            if len(row.cells) >= 2:
-                component = row.cells[0].text.strip()
-                if component in compensation_data:
-                    row.cells[1].text = compensation_data[component]
+                for paragraph in cell.paragraphs:
+                    for find_text, replace_text in replacements.items():
+                        if find_text in paragraph.text:
+                            # Try run-level first
+                            replaced = replace_in_runs(paragraph, find_text, str(replace_text))
+                            if not replaced and paragraph.runs:
+                                # Placeholder is split across runs - rebuild
+                                full_text = paragraph.text
+                                new_text = full_text.replace(find_text, str(replace_text))
+                                # Keep first run's formatting, put all text there
+                                paragraph.runs[0].text = new_text
+                                for run in paragraph.runs[1:]:
+                                    run.text = ""
     
     doc.save(output_path)
     return output_path
+
 
 def convert_to_pdf(docx_path, pdf_path):
     """Convert DOCX to PDF using LibreOffice"""
@@ -103,6 +107,34 @@ def convert_to_pdf(docx_path, pdf_path):
     except Exception as e:
         print(f"❌ PDF conversion failed: {e}")
         return None
+
+
+def generate_offer_internal(profile_name, data):
+    """Programmatic interface for offer generation"""
+    profile = load_profile(profile_name)
+    
+    # Prepare paths
+    name_clean = data['name'].replace(' ', '_')
+    output_dir = Path('output') / profile_name
+    output_dir.mkdir(exist_ok=True, parents=True)
+    
+    docx_out = output_dir / f'offer_letter_{name_clean}.docx'
+    template_path = Path(profile['template_docx'])
+    
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template not found: {template_path}")
+    
+    fill_offer_letter(template_path, data, profile, docx_out)
+    
+    # Convert to PDF
+    pdf_out = docx_out.with_suffix('.pdf')
+    convert_to_pdf(docx_out, pdf_out)
+    
+    return {
+        'docx': docx_out,
+        'pdf': pdf_out
+    }
+
 
 def main():
     if len(sys.argv) < 3:

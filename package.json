@@ -1,0 +1,12 @@
+{
+    "name": "offer-letter-automation-utils",
+    "version": "1.0.0",
+    "description": "Utility scripts for WhatsApp pairing and other tasks",
+    "main": "index.js",
+    "type": "module",
+    "dependencies": {
+        "@whiskeysockets/baileys": "^6.5.0",
+        "pino": "^8.16.2",
+        "readline": "^1.3.0"
+    }
+}
