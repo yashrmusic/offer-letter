@@ -8,26 +8,41 @@ export class DOCXService {
     async generateOfferLetter(candidateData: CandidateData): Promise<Buffer> {
         const templateId = candidateData.template || "hookkapaani";
         const companyDir = path.join(process.cwd(), "templates", templateId);
-        
-        let finalPath = path.join(companyDir, "offer_template.docx");
 
-        // Resilient template discovery
-        if (!fs.existsSync(finalPath) && fs.existsSync(companyDir)) {
-            const files = fs.readdirSync(companyDir);
-            const docxFile = files.find(f => f.toLowerCase().endsWith(".docx"));
-            if (docxFile) {
-                finalPath = path.join(companyDir, docxFile);
+        console.log(`[DOCX] Processing template for ID: "${templateId}"`);
+
+        let finalPath = "";
+
+        // Branded Template Discovery (Priority: Largest .docx file in company dir)
+        if (fs.existsSync(companyDir)) {
+            const files = fs.readdirSync(companyDir)
+                .filter(f => f.toLowerCase().endsWith(".docx"))
+                .map(f => ({
+                    name: f,
+                    path: path.join(companyDir, f),
+                    size: fs.statSync(path.join(companyDir, f)).size
+                }))
+                .sort((a, b) => b.size - a.size); // Largest first
+
+            if (files.length > 0) {
+                finalPath = files[0].path;
+                console.log(`[DOCX] Found ${files.length} potential templates. Selected largest: "${files[0].name}" (${files[0].size} bytes)`);
             }
         }
 
-        const fallbackPath = path.join(process.cwd(), "templates", "offer_template.docx");
-        if (!fs.existsSync(finalPath)) {
-            finalPath = fallbackPath;
+        // Fallback to default if no company-specific template found
+        if (!finalPath || !fs.existsSync(finalPath)) {
+            finalPath = path.join(process.cwd(), "templates", "offer_template.docx");
+            console.log(`[DOCX] No company-specific template found. Using default fallback.`);
         }
 
         if (!fs.existsSync(finalPath)) {
             throw new Error(`Offer template not found for ${templateId}`);
         }
+
+        const fileStats = fs.statSync(finalPath);
+        console.log(`[DOCX] FINAL template path: "${finalPath}"`);
+        console.log(`[DOCX] FINAL template size: ${fileStats.size} bytes`);
 
         const templateContent = fs.readFileSync(finalPath, "binary");
         const zip = new PizZip(templateContent);
