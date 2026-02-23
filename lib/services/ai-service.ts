@@ -1,5 +1,6 @@
-import { CandidateData, TemplateId } from "../types";
-import { AVAILABLE_TEMPLATES, COMPANY_MAPPINGS, DEFAULT_TEMPLATE } from "./constants";
+import { CandidateData, TemplateId } from "../../types";
+import { AVAILABLE_TEMPLATES, COMPANY_MAPPINGS, DEFAULT_TEMPLATE } from "../constants";
+import { config, validateConfig } from "../config";
 
 const SYSTEM_PROMPT = `You are a high-end HR Intelligence Agent for StructCrew. Your task is to extract candidate data from unstructured text and map it to the correct company template.
 
@@ -28,9 +29,8 @@ export class AIService {
     private apiKey: string;
 
     constructor() {
-        const key = process.env.OPENROUTER_API_KEY;
-        if (!key) throw new Error("OPENROUTER_API_KEY is missing");
-        this.apiKey = key;
+        validateConfig();
+        this.apiKey = config.openRouterKey!;
     }
 
     async parseCandidatePrompt(prompt: string): Promise<CandidateData> {
@@ -39,8 +39,8 @@ export class AIService {
             headers: {
                 "Authorization": `Bearer ${this.apiKey}`,
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://structcrew.online",
-                "X-Title": "StructCrew Platform",
+                "HTTP-Referer": config.siteUrl,
+                "X-Title": config.siteName,
             },
             body: JSON.stringify({
                 model: "google/gemini-2.0-flash-001",

@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "StructCrew — Architecture & Construction Recruitment",
-  description: "Elite recruitment for architects, engineers, and construction professionals. Building the infrastructure of human capital.",
-  keywords: ["recruitment", "architecture", "construction", "hiring", "AEC", "staffing"],
+  title: "StructCrew | Human Capital Platform",
+  description: "Advanced recruitment intelligence for architecture and construction. AI-powered offer automation and candidate management.",
+  keywords: ["recruitment", "architecture", "construction", "hiring", "AEC", "human capital", "AI HR"],
   openGraph: {
-    title: "StructCrew — Architecture & Construction Recruitment",
-    description: "Elite recruitment for architects, engineers, and construction professionals.",
+    title: "StructCrew Platform",
+    description: "Intelligent recruitment automation for the AEC industry.",
     type: "website",
     url: "https://structcrew.online",
   },

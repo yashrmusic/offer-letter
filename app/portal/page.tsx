@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Sparkles, Send, FileText, CheckCircle2, ArrowLeft, Loader2, AlertCircle, Download } from "lucide-react";
+import { Sparkles, Send, FileText, CheckCircle2, ArrowLeft, Loader2, AlertCircle, Download, User, Briefcase, IndianRupee, Building2, Calendar } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 
 interface CandidateData {
@@ -178,33 +179,62 @@ export default function PortalPage() {
                             </div>
                         )}
 
-                        {candidateData ? (
+                        {candidateData || isParsing ? (
                             <div className="glass-card p-8 animate-fade-in-up">
                                 <h3 className="font-bold mb-2 flex items-center gap-2 text-emerald-400 text-sm uppercase tracking-wider">
                                     <CheckCircle2 className="w-4 h-4" /> Extracted Profile
                                 </h3>
                                 <div className="mb-6 flex items-center gap-2">
-                                    <span className="text-[10px] px-2 py-1 rounded-md bg-blue-500/10 text-blue-400 font-semibold uppercase tracking-wider border border-blue-500/20">
-                                        Template: {candidateData.template || "default"}
-                                    </span>
+                                    {isParsing ? (
+                                        <div className="h-4 w-32 bg-white/5 rounded animate-pulse" />
+                                    ) : (
+                                        <span className="text-[10px] px-2 py-1 rounded-md bg-blue-500/10 text-blue-400 font-semibold uppercase tracking-wider border border-blue-500/20">
+                                            Template: {candidateData?.template || "default"}
+                                        </span>
+                                    )}
                                 </div>
 
                                 <div className="space-y-4 mb-8">
-                                    {displayFields.map(([key, value], i) => (
-                                        <div key={i} className="flex justify-between items-center border-b border-white/[0.04] pb-3">
-                                            <span className="text-slate-600 text-xs uppercase tracking-wider font-medium">{key.replace(/_/g, " ")}</span>
-                                            <span className="text-white text-sm font-semibold text-right max-w-[60%]">{String(value)}</span>
-                                        </div>
-                                    ))}
+                                    <AnimatePresence mode="popLayout">
+                                        {isParsing ? (
+                                            // Skeleton State
+                                            Array.from({ length: 5 }).map((_, i) => (
+                                                <motion.div
+                                                    key={`skeleton-${i}`}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    className="flex justify-between items-center border-b border-white/[0.04] pb-3"
+                                                >
+                                                    <div className="h-3 w-20 bg-white/5 rounded animate-pulse" />
+                                                    <div className="h-4 w-32 bg-white/10 rounded animate-pulse" />
+                                                </motion.div>
+                                            ))
+                                        ) : (
+                                            // Real Data with Staggered Animation
+                                            displayFields.map(([key, value], i) => (
+                                                <motion.div
+                                                    key={key}
+                                                    initial={{ opacity: 0, x: 20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ delay: i * 0.05 }}
+                                                    className="flex justify-between items-center border-b border-white/[0.04] pb-3"
+                                                >
+                                                    <span className="text-slate-600 text-xs uppercase tracking-wider font-medium">{key.replace(/_/g, " ")}</span>
+                                                    <span className="text-white text-sm font-semibold text-right max-w-[60%]">{String(value)}</span>
+                                                </motion.div>
+                                            ))
+                                        )}
+                                    </AnimatePresence>
                                 </div>
 
                                 <div className="space-y-3">
                                     <button
                                         onClick={handleGenerateDocx}
-                                        disabled={isGenerating}
+                                        disabled={isGenerating || isParsing}
                                         className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${docxGenerated
-                                            ? "bg-emerald-500 text-white"
-                                            : "bg-white text-[#0a0f1e] hover:bg-slate-100"
+                                                ? "bg-emerald-500 text-white"
+                                                : "bg-white text-[#0a0f1e] hover:bg-slate-100 disabled:opacity-50"
                                             }`}
                                     >
                                         {isGenerating ? (
@@ -215,7 +245,10 @@ export default function PortalPage() {
                                             <><FileText className="w-4 h-4" /> Generate DOCX</>
                                         )}
                                     </button>
-                                    <button className="w-full py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 font-bold text-sm hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-2">
+                                    <button
+                                        disabled={isParsing}
+                                        className="w-full py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 font-bold text-sm hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
                                         <Send className="w-4 h-4" /> Email to Candidate
                                     </button>
                                 </div>

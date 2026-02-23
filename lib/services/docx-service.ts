@@ -2,7 +2,7 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import * as fs from "fs";
 import * as path from "path";
-import { CandidateData } from "../types";
+import { CandidateData } from "../../types";
 
 export class DOCXService {
     async generateOfferLetter(candidateData: CandidateData): Promise<Buffer> {
