@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Ensuring we can serve it on a subdomain if needed
+    // Force Vercel to include template files in the serverless function bundle
+    outputFileTracingIncludes: {
+        '/api/generate-docx': ['./templates/**/*'],
+    },
 };
 
 export default nextConfig;
