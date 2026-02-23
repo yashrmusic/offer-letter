@@ -7,15 +7,26 @@ import { CandidateData } from "../../types";
 export class DOCXService {
     async generateOfferLetter(candidateData: CandidateData): Promise<Buffer> {
         const templateId = candidateData.template || "hookkapaani";
+        const companyDir = path.join(process.cwd(), "templates", templateId);
+        
+        let finalPath = path.join(companyDir, "offer_template.docx");
 
-        // Path resolution: logic for production-ready path handling
-        const templatePath = path.join(process.cwd(), "templates", templateId, "offer_template.docx");
+        // Resilient template discovery
+        if (!fs.existsSync(finalPath) && fs.existsSync(companyDir)) {
+            const files = fs.readdirSync(companyDir);
+            const docxFile = files.find(f => f.toLowerCase().endsWith(".docx"));
+            if (docxFile) {
+                finalPath = path.join(companyDir, docxFile);
+            }
+        }
+
         const fallbackPath = path.join(process.cwd(), "templates", "offer_template.docx");
-
-        const finalPath = fs.existsSync(templatePath) ? templatePath : fallbackPath;
+        if (!fs.existsSync(finalPath)) {
+            finalPath = fallbackPath;
+        }
 
         if (!fs.existsSync(finalPath)) {
-            throw new Error(`Offer template not found at ${finalPath}`);
+            throw new Error(`Offer template not found for ${templateId}`);
         }
 
         const templateContent = fs.readFileSync(finalPath, "binary");
